@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Razor">
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net6.0-windows</TargetFramework>
+        <Nullable>enable</Nullable>
+        <UseWPF>true</UseWPF>
+    </PropertyGroup>
+    <PropertyGroup>
+        <RootNameSpace>StepDownWpf</RootNameSpace>
+    </PropertyGroup>
+    <ItemGroup>
+      <PackageReference Include="AngleSharp" Version="0.17.1" />
+      <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="6.0.486" />
+      <PackageReference Include="MudBlazor" Version="6.0.14" />
+    </ItemGroup>
+</Project>

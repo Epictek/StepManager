@@ -1,0 +1,182 @@
+﻿@using AngleSharp;
+@using System.IO.Compression;
+@using System.IO
+@using System.Net.Http
+@using AngleSharp.Dom
+@using Microsoft.AspNetCore.Components
+@inject ISnackbar Snackbar
+
+
+<MudThemeProvider IsDarkMode="true" />
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Edge="Edge.End" />
+    </MudAppBar>
+    <MudMainContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudPaper >
+                    <MudTextField Immediate="true" Label="Search" @bind-Value="SearchTextValue" Class="ml-3">Simfile Downloader</MudTextField>
+                    <MudList Class="overflow-scroll" Style="height: 900px; width:100%;" Clickable="true">
+                        @foreach (var cat in FilteredCatList)
+                        {
+                            <MudListItem OnClick="() => SelectCat(cat)" Text="@cat.TextContent"/>
+                        }
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+            @if (SongList.Any())
+            {
+                <MudItem xs="12" sm="6">
+                    <MudPaper Class="overflow-scroll" Height="955px" Width="100%">
+                        <MudImage Style="margin-left: auto;margin-right: auto;display: block;" Src="@Banner" Elevation="25" Class="rounded-lg"/>
+                        <MudFab OnClick="DownloadZenPack" Style="position: absolute;right: 20px;top: 80px;" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"/>
+                        <h1 class="ml-4">@Title</h1>
+                        <MudList Clickable="true">
+                            @foreach (var song in SongList)
+                            {
+                                <MudListItem Text="@song.TextContent"/>
+                            }
+                        </MudList>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool enabled = true;
+    private IEnumerable<IElement> CatList = new List<IElement>();
+    private IEnumerable<IElement> FilteredCatList = new List<IElement>();
+
+    
+    private IEnumerable<IElement> SongList = new List<IElement>();
+    string Title;
+    string Banner;
+
+    private string searchTextValue;
+
+    string SearchTextValue
+    {
+        get => searchTextValue;
+        set
+        {
+            searchTextValue = value;
+            SearchTextChanged();
+        }
+    }
+
+    IBrowsingContext context;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var cid = 34;
+
+
+        var config = Configuration.Default.WithDefaultLoader();
+        context = BrowsingContext.New(config);
+
+        var catListUrl = "https://zenius-i-vanisher.com/v5.2/simfiles.php?category=simfiles";
+
+        var document = await context.OpenAsync(catListUrl);
+        CatList = document.QuerySelectorAll("option").Where(x => x.GetAttribute("value") != "0");
+        FilteredCatList = CatList;
+    }
+
+    string CreatePackDir(string packTitle)
+    {
+        var songPath = @"C:\Games\Project OutFox\Songs";
+
+        var packPath = Path.Join(songPath, packTitle); 
+        Directory.CreateDirectory(packPath);
+        return packPath;
+    }
+    
+    
+    async  Task DownloadZenPack()
+    {
+        Snackbar.Add($"Downloading pack {Title}", Severity.Info);
+        var songPath = CreatePackDir(Title);
+
+
+        foreach (var sim in SongList)
+        {
+            var sname = sim.TextContent;
+            Snackbar.Add($"Downloading {sname}", Severity.Info);
+
+            var sid = sim.GetAttribute("href").Split('=')[1];
+            var downloadUrl = $"https://zenius-i-vanisher.com/v5.2/download.php?type=ddrsimfile&simfileid={sid}";
+
+            using var client = new HttpClient();
+
+            await using var s = await client.GetStreamAsync(downloadUrl);
+
+            var zip = Path.Join(songPath, $"{sid}.zip");
+            await using var fs = new FileStream(zip, FileMode.CreateNew);
+            await s.CopyToAsync(fs);
+            Snackbar.Add($"Finished downloading {sname}", Severity.Success);
+        }
+
+    var files = Directory.GetFiles(songPath).Where(x => x.EndsWith(".zip")).ToArray();
+        
+    Snackbar.Add($"Extracting files", Severity.Info);
+
+    foreach (var file in files)
+    {
+        try
+        {
+            ZipFile.ExtractToDirectory(file, songPath);
+            File.Delete(file);
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Failure extracting {file}", Severity.Error);
+
+            Console.WriteLine(ex);
+        }
+    }
+        Snackbar.Add($"Finished extracting files", Severity.Info);
+
+        
+    }
+    
+
+    async Task SelectCat(IElement cat)
+    {
+        var id = cat.GetAttribute("value");
+
+        var url = $"https://zenius-i-vanisher.com/v5.2/viewsimfilecategory.php?categoryid={id}";
+
+        var document = await context.OpenAsync(url);
+
+        var titleSelector = "html body div.fixwidth div.headertop h1";
+        Title = document.QuerySelector(titleSelector).TextContent;
+
+        var simTdSelector = "html body div.fixwidth div.content table tbody tr td strong a";
+
+        SongList = document.QuerySelectorAll(simTdSelector).Where(x => x.GetAttribute("href").StartsWith("viewsimfile.php"));
+
+        var imgUrl = document.QuerySelector("html body div.fixwidth div.content p.centre img")?.GetAttribute("src");
+        imgUrl = imgUrl?.Replace("..", "https://zenius-i-vanisher.com/");
+        Banner = imgUrl;
+
+    }
+
+    private void SearchTextChanged()
+    {
+        if (string.IsNullOrEmpty(SearchTextValue))
+        {
+            FilteredCatList = CatList;
+        }
+        else
+        {
+            FilteredCatList = CatList.Where(x => x.TextContent.Contains(SearchTextValue));
+        }
+    }
+
+}
