@@ -1,0 +1,94 @@
+﻿@page "/"
+
+@using AngleSharp;
+@using System.IO.Compression;
+@using System.IO
+@using AngleSharp.Dom
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@using StepManager.DownloadSources
+@inject ILogger<Search> Logger
+@inject ISnackbar Snackbar
+@inject HttpClient Client
+@inject ZenSource ZenSource
+<MudThemeProvider IsDarkMode="true" />
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudPaper >
+                    <MudTextField Immediate="true" Label="Artist" @bind-Value="SearchArtistValue" Class="ml-3"></MudTextField>
+                    <MudTextField Immediate="true" Label="Title" @bind-Value="SearchTitleValue" Class="ml-3"></MudTextField>
+                    <MudTable Items="@PackList" Hover="true">
+                        <HeaderContent>
+                            <MudTh>Pack</MudTh>
+                            <MudTh>Title</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Pack">@context.pack</MudTd>
+                            <MudTd DataLabel="Title">@context.name</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+
+
+@code {
+    private bool enabled = true;
+    private IEnumerable<(string name, string id, string pack, string packid)> PackList = new List<(string name, string id, string pack, string packid)> ();
+
+
+
+    private ZenSource.PackDetails SelectedPack;
+
+    string searchArtistValue;
+    string SearchArtistValue
+    {
+        get => searchArtistValue;
+        set
+        {
+            searchArtistValue = value;
+            _ = SearchTextChanged();
+        }
+    }
+
+
+    string searchTitleValue;
+    string SearchTitleValue
+    {
+        get => searchTitleValue;
+        set
+        {
+            searchTitleValue = value;
+            _ = SearchTextChanged();
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+    }
+
+    
+    async  Task DownloadPack()
+    {
+        await ZenSource.DownloadPack(SelectedPack);
+    }
+
+    private async Task SearchTextChanged()
+    {
+        if (SearchTitleValue == null && SearchArtistValue == null)
+        {
+            PackList = new List<(string name, string id, string pack, string packid)>();
+        }
+        else
+        {
+            PackList = await ZenSource.SearchPacks(SearchTitleValue, SearchArtistValue);
+        }
+    }
+
+
+
+}

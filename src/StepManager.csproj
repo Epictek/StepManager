@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net6.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+    </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="AngleSharp" Version="0.17.1" />
+      <PackageReference Include="Directories.Net" Version="1.0.0" />
+      <PackageReference Include="MudBlazor" Version="6.0.14" />
+      <PackageReference Include="Samboy063.Tomlet" Version="3.2.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\StepmaniaUtils\StepmaniaUtils.Core\StepmaniaUtils.Core.csproj" />
+    </ItemGroup>
+
+</Project>

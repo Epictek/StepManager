@@ -1,0 +1,3 @@
+[submodule "StepmaniaUtils"]
+	path = StepmaniaUtils
+	url = https://github.com/StefanoFiumara/StepmaniaUtils

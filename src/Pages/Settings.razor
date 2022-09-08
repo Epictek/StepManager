@@ -1,0 +1,22 @@
+﻿@page "/Settings"
+@using StepManager.Services
+@inject SettingsService SettingsService
+
+<h3>Settings</h3>
+<MudTextField @bind-Value="GamePath" Label="Game Path" Variant="Variant.Outlined"></MudTextField>
+
+
+<MudButton OnClick="() => SettingsService.Save()">
+Save
+</MudButton>
+
+@code {
+    public string GamePath { get; set; }
+
+    protected override Task OnInitializedAsync()
+    {
+        GamePath = SettingsService.Settings.StepManiaRootPath;
+        return base.OnInitializedAsync();
+    }
+
+}

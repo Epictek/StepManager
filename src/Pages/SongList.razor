@@ -1,0 +1,241 @@
+﻿@page "/local/songs"
+
+@using AngleSharp;
+@using System.IO.Compression;
+@using System.IO
+@using System.Net.Http
+@using AngleSharp.Dom
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Logging.Abstractions
+@using System.Collections.Concurrent
+@using System.Diagnostics
+@using Microsoft.JSInterop
+@using StepManager.Services
+@using StepmaniaUtils
+@inject ILogger<SongList> Logger
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+@inject SettingsService SettingsService
+
+
+@if (NoFolder)
+{
+    <MudAlert Severity="Severity.Error">Could not find OutFox or StepMania folder, Please specify a folder in the settings</MudAlert>
+    return;
+}
+
+<MudGrid>
+    <MudItem xs="12">
+        <MudPaper Height="100%" Width="100%">
+            @* <MudImage Style="margin-left: auto;margin-right: auto;display: block;" Src="@Banner" Elevation="25" Class="rounded-lg"/> *@
+            <MudTable
+                Height="900px"
+                Hover="true"
+                FixedHeader="true"
+                Dense="true"
+                Items="@Songs"
+                GroupBy="@_groupDefinition"
+                MultiSelection="true"
+                Loading="@Loading">
+                <ColGroup>
+                    <col style="width: 20px;" />
+                    <col style="width: 128px;"/>
+                    <col/>
+                    <col/>
+                    <col/>
+                    <col style="width: 60px;"/>
+                </ColGroup>
+                <HeaderContent>
+                    <MudTh>Banner</MudTh>
+                    <MudTh><MudTableSortLabel  SortBy="new Func<SmFile, object>(x => x.Artist)">Artist</MudTableSortLabel></MudTh>
+                    <MudTh><MudTableSortLabel InitialDirection="SortDirection.Ascending" SortBy="new Func<SmFile, object>(x => x.SongTitle)">Title</MudTableSortLabel></MudTh>
+                    <MudTh>Difficulty</MudTh>
+                    <MudTh>BPM</MudTh>
+                </HeaderContent>
+                <GroupHeaderTemplate>
+                    <MudTh Class="mud-table-cell-custom-group" colspan="5">
+                        @{
+                            if ((string)context.Key == "Songs")
+                            {
+
+                            }
+                            var banner = GetPackImage((string)context.Key);
+                            if (banner != null)
+                            {
+                                <MudImage Height="80" Src="@Base64Image(banner)"></MudImage>
+                            }
+                            @context.Key
+                        }
+                    </MudTh>
+                </GroupHeaderTemplate>
+                <RowTemplate>
+                    <MudTd DataLabel="Banner">
+                        @context.BannerPath
+                        @* <MudImage Height="40" Src="@(Base64Image(Path.Combine(context.Directory, context.BannerPath)))"/> *@
+                    </MudTd>
+                    <MudTd DataLabel="Artist">@context.Artist</MudTd>
+                    <MudTd DataLabel="Title">@context.SongTitle</MudTd>
+                    <MudTd DataLabel="Difficulty">@string.Join(',', context.ChartMetadata.StepCharts.Select(x=> x.Difficulty).Distinct())</MudTd>
+                    <MudTd DataLabel="BPM">@context.DisplayBpm</MudTd>
+                    <MudTd DataLabel="Actions">
+                         <MudToggleIconButton Toggled="@context.Equals(_currentPlaying)"
+                                             ToggledChanged="(t) => OnAudioToggle(t, context)"
+                                             Icon="@Icons.Material.Filled.PlayCircle" Color="@Color.Success" Title="Play"
+                                             ToggledIcon="@Icons.Material.Filled.StopCircle" ToggledColor="@Color.Error" ToggledTitle="Stop"/>
+                                    
+                    </MudTd>
+
+                </RowTemplate>
+                            
+            </MudTable>
+        </MudPaper>
+    </MudItem>
+    }
+</MudGrid>
+
+<audio src="@_currentFile" autoplay></audio>
+
+@code {
+    SmFile _currentPlaying;
+
+    string _currentFile;
+
+    string Base64Image(string imageFilepath)
+    {
+        return "data:image/png;base64," + Convert.ToBase64String(File.ReadAllBytes(imageFilepath));
+        
+    }
+    
+    string Base64Audio(string imageFilepath)
+    {
+        return "data:audio/ogg;base64," + Convert.ToBase64String(File.ReadAllBytes(imageFilepath));
+    }
+
+    string GetPackDir(string pack)
+    {
+        return Path.Combine(SettingsService.Settings.StepManiaSongPath, pack);
+    }
+
+    string? GetPackImage(string pack)
+    {
+        var packDir = GetPackDir(pack);
+        var bannerPath = Path.Combine(packDir, "banner.png");
+        if (File.Exists(bannerPath))
+        {
+            return bannerPath;
+        }
+
+        var image = (Directory.GetFiles(packDir, "*bn.png").FirstOrDefault() ??
+                     Directory.GetFiles(packDir, "banner.png").FirstOrDefault()) ??
+                    Directory.GetFiles(packDir, "*.png").FirstOrDefault();
+
+        return image;
+
+    }
+    
+    private bool Loading = true;
+    private IEnumerable<SmFile> Songs = new List<SmFile>();
+
+    string SelectedPack;
+    
+    string Title;
+    string Banner;
+
+
+    bool NoFolder = true;
+    
+    IBrowsingContext context;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Loading = true;
+
+        NoFolder = !Directory.Exists(SettingsService.Settings.StepManiaSongPath);
+
+        if (!NoFolder)
+        {
+            IProgress<string> progress = new Progress<string>(s => _ = JSRuntime.InvokeVoidAsync("console.log", s));
+
+            Songs = await ScanSongDataAsync(SettingsService.Settings.StepManiaSongPath, progress);
+        }
+        Loading = false;
+    }
+    
+
+            public async Task<List<SmFile>> ScanSongDataAsync(string songsPath, IProgress<string> progress)
+        {
+            var fileQueue = new BlockingCollection<string>();
+            var result = new ConcurrentBag<SmFile>();
+
+            Logger.LogInformation($"{nameof(ScanSongDataAsync)} - Scanning Song Library");
+            progress.Report("Scanning Song Library: 0");
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            var producer = Task.Run(() =>
+            {
+                foreach (var file in Directory.EnumerateFiles(songsPath, "*.sm", SearchOption.AllDirectories).AsParallel())
+                {
+                    fileQueue.Add(file);
+                }
+
+                fileQueue.CompleteAdding();
+            });
+
+            Logger.LogInformation($"{nameof(ScanSongDataAsync)} - Creating consumer queue, workers: {Environment.ProcessorCount}");
+
+
+            var consumers = Enumerable.Range(0, Environment.ProcessorCount * 2)
+                .Select(_ => Task.Run(() =>
+                {
+                    foreach (string file in fileQueue.GetConsumingEnumerable())
+                    {
+                        try
+                        {
+                            var song = new SmFile(file);
+                            result.Add(song);
+                            
+                            progress.Report($"Scanning Song Library: {result.Count}");
+                        }
+                        catch (Exception e)
+                        {
+                         JSRuntime.InvokeVoidAsync("console.log",$"{nameof(ScanSongDataAsync)} - Could not load file at: {file}\n{e}");
+                        }
+                    }
+                }));
+            
+            await Task.WhenAll(consumers);
+            
+            stopwatch.Stop();
+
+            _ = JSRuntime.InvokeVoidAsync("console.log",($"{nameof(ScanSongDataAsync)} - Songs Loaded: {result.Count}, Time Elapsed: {stopwatch.ElapsedMilliseconds} ms"));
+            return result.ToList();
+        }
+    
+
+    private TableGroupDefinition<SmFile> _groupDefinition = new TableGroupDefinition<SmFile>()
+    {
+        GroupName = "Group",
+        Indentation = true,
+        Expandable = true,
+        Selector = (e) => e.Group,
+    };
+
+    private void OnAudioToggle(bool toggle, SmFile file)
+    {
+        if (toggle)
+        {
+            _currentPlaying = file;
+            _currentFile = Base64Audio(Directory.GetFiles(file.Directory, "*.ogg").FirstOrDefault());
+        }
+        else
+        {
+            _currentPlaying = null;
+
+            _currentFile = "";
+        }
+    }
+
+}
