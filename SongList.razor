@@ -1,0 +1,185 @@
+﻿@using AngleSharp;
+@using System.IO.Compression;
+@using System.IO
+@using System.Net.Http
+@using AngleSharp.Dom
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Logging.Abstractions
+@using System.Collections.Concurrent
+@using System.Diagnostics
+@using Microsoft.JSInterop
+@using StepmaniaUtils
+@inject ILogger<Main> Logger
+@inject ISnackbar Snackbar
+@inject IJSRuntime JSRuntime
+
+<MudThemeProvider IsDarkMode="true" />
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+<MudLayout>
+    <MudAppBar Elevation="1">
+        <MudSpacer />
+        <MudIconButton Icon="@Icons.Material.Filled.MoreVert" Color="Color.Inherit" Edge="Edge.End" />
+    </MudAppBar>
+    <MudMainContent>
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudPaper >
+                    <MudTextField Immediate="true" Label="Search" @bind-Value="SearchTextValue" Class="ml-3">Simfile Downloader</MudTextField>
+                    <MudList Class="overflow-scroll" Style="height: 900px; width:100%;" Clickable="true">
+                        @foreach (var pack in FilteredSongs)
+                        {
+                            <MudListItem OnClick="() => SelectPack(pack.Key)" Text="@pack.Key"/>
+                        }
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+            @if (!string.IsNullOrEmpty(SelectedPack))
+            {
+                var sp = Songs.FirstOrDefault(x => x.Key == SelectedPack);
+                <MudItem xs="12" sm="6">
+                    <MudPaper Class="overflow-scroll" Height="955px" Width="100%">
+                        <MudImage Style="margin-left: auto;margin-right: auto;display: block;" Src="@Banner" Elevation="25" Class="rounded-lg"/>
+                        <h1 class="ml-4">@sp.Key</h1>
+                        <MudList Clickable="true">
+                            @foreach (var song in sp)
+                            {
+                                <MudListItem Text="@song.SmFile.SongTitle"/>
+                            }
+                        </MudList>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool enabled = true;
+    private IEnumerable<IGrouping<string, SongMetadata>> Songs = new List<IGrouping<string, SongMetadata>>();
+    private IEnumerable<IGrouping<string, SongMetadata>> FilteredSongs = new List<IGrouping<string, SongMetadata>>();
+
+    string SelectedPack;
+    
+    string Title;
+    string Banner;
+
+    private string searchTextValue;
+
+    string SearchTextValue
+    {
+        get => searchTextValue;
+        set
+        {
+            searchTextValue = value;
+            SearchTextChanged();
+        }
+    }
+
+    IBrowsingContext context;
+
+    protected override async Task OnInitializedAsync()
+    {
+        IProgress<string> progress = new Progress<string>(s => _ = JSRuntime.InvokeVoidAsync("console.log", s));
+
+        Songs = await ScanSongDataAsync(@"C:\Games\Project OutFox\", progress);
+        FilteredSongs = Songs;
+    }
+
+    public class SongMetadata
+    {
+        public SmFile SmFile { get; set; }
+        
+        public SongMetadata(string smFilePath)
+        {
+            SmFile = new SmFile(smFilePath);
+        }
+    }
+
+
+            public async Task<List<IGrouping<string, SongMetadata>>> ScanSongDataAsync(string stepmaniaRootPath, IProgress<string> progress)
+        {
+            var fileQueue = new BlockingCollection<string>();
+            var result = new ConcurrentBag<SongMetadata>();
+
+            Logger.LogInformation($"{nameof(ScanSongDataAsync)} - Scanning Song Library");
+            progress.Report("Scanning Song Library: 0");
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            var producer = Task.Run(() =>
+            {
+                var songsPath = Path.Combine(stepmaniaRootPath, @"Songs");
+                foreach (var file in Directory.EnumerateFiles(songsPath, "*.sm", SearchOption.AllDirectories).AsParallel())
+                {
+                    fileQueue.Add(file);
+                }
+
+                fileQueue.CompleteAdding();
+            });
+
+            Logger.LogInformation($"{nameof(ScanSongDataAsync)} - Creating consumer queue, workers: {Environment.ProcessorCount}");
+
+
+            var consumers = Enumerable.Range(0, Environment.ProcessorCount * 2)
+                .Select(_ => Task.Run(() =>
+                {
+                    foreach (string file in fileQueue.GetConsumingEnumerable())
+                    {
+                        try
+                        {
+                            var song = new SongMetadata(file);
+                            result.Add(song);
+
+                            progress.Report($"Scanning Song Library: {result.Count}");
+                        }
+                        catch (Exception e)
+                        {
+                         JSRuntime.InvokeVoidAsync("console.log",$"{nameof(ScanSongDataAsync)} - Could not load file at: {file}\n{e}");
+                        }
+                    }
+                }));
+            
+            await Task.WhenAll(consumers);
+            
+            stopwatch.Stop();
+
+            _ = JSRuntime.InvokeVoidAsync("console.log",($"{nameof(ScanSongDataAsync)} - Songs Loaded: {result.Count}, Time Elapsed: {stopwatch.ElapsedMilliseconds} ms"));
+            return result.GroupBy(s => s.SmFile.Group).ToList();
+        }
+
+
+
+    string CreatePackDir(string packTitle)
+    {
+        var songPath = @"C:\Games\Project OutFox\Songs";
+
+        var packPath = Path.Join(songPath, packTitle); 
+        Directory.CreateDirectory(packPath);
+        return packPath;
+    }
+    
+    
+
+
+    void SelectPack(string pack)
+    {
+        SelectedPack = pack;
+    }
+
+    private void SearchTextChanged()
+    {
+        if (string.IsNullOrEmpty(SearchTextValue))
+        {
+            FilteredSongs = Songs;
+        }
+        else
+        {
+            FilteredSongs = Songs.Where(x => x.Key.Contains(SearchTextValue));
+        }
+    }
+
+}

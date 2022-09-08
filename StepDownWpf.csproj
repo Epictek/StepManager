@@ -9,8 +9,18 @@
         <RootNameSpace>StepDownWpf</RootNameSpace>
     </PropertyGroup>
     <ItemGroup>
+      <Compile Remove="StepmaniaUtils\**" />
+      <Content Remove="StepmaniaUtils\**" />
+      <EmbeddedResource Remove="StepmaniaUtils\**" />
+      <None Remove="StepmaniaUtils\**" />
+      <Page Remove="StepmaniaUtils\**" />
+    </ItemGroup>
+    <ItemGroup>
       <PackageReference Include="AngleSharp" Version="0.17.1" />
       <PackageReference Include="Microsoft.AspNetCore.Components.WebView.Wpf" Version="6.0.486" />
       <PackageReference Include="MudBlazor" Version="6.0.14" />
+    </ItemGroup>
+    <ItemGroup>
+      <ProjectReference Include="StepmaniaUtils\StepmaniaUtils.Core\StepmaniaUtils.Core.csproj" />
     </ItemGroup>
 </Project>

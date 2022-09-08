@@ -13,6 +13,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MudBlazor.Services;
 
 namespace StepDownWpf
@@ -32,6 +33,9 @@ namespace StepDownWpf
 #if DEBUG
             serviceCollection.AddBlazorWebViewDeveloperTools();
 #endif
+            serviceCollection.AddLogging(builder => builder
+                .SetMinimumLevel(LogLevel.Debug)
+            );
 
             Resources.Add("services", serviceCollection.BuildServiceProvider());
         }

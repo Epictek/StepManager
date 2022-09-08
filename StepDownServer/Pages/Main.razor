@@ -1,0 +1,95 @@
+﻿@page "/"
+
+@using AngleSharp;
+@using System.IO.Compression;
+@using System.IO
+@using AngleSharp.Dom
+@using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@using StepDownServer.DownloadSources
+@inject ILogger<Main> Logger
+@inject ISnackbar Snackbar
+@inject HttpClient Client
+@inject ZenSource ZenSource
+<MudThemeProvider IsDarkMode="true" />
+<MudDialogProvider/>
+<MudSnackbarProvider/>
+
+        <MudGrid>
+            <MudItem xs="12" sm="6">
+                <MudPaper >
+                    <MudTextField Immediate="true" Label="Search" @bind-Value="SearchTextValue" Class="ml-3">Simfile Downloader</MudTextField>
+                    <MudList Class="overflow-scroll" Style="height: 900px; width:100%;" Clickable="true">
+                        @foreach (var pack in FilteredPackList)
+                        {
+                            <MudListItem OnClick="async () => SelectedPack = await ZenSource.GetPackDetails(pack.Id)" Text="@pack.Name"/>
+                        }
+                    </MudList>
+                </MudPaper>
+            </MudItem>
+            @if (SelectedPack != null)
+            {
+                <MudItem xs="12" sm="6">
+                    <MudPaper Class="overflow-scroll" Height="955px" Width="100%">
+                        <MudImage Style="margin-left: auto;margin-right: auto;display: block;" Src="@SelectedPack.BannerUrl" Elevation="25" Class="rounded-lg"/>
+                        <MudFab OnClick="DownloadPack" Style="position: absolute;right: 20px;top: 80px;" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Download"/>
+                        <h1 class="ml-4">@SelectedPack.Name</h1>
+                        <MudList Clickable="true">
+                            @foreach (var song in SelectedPack.Songs)
+                            {
+                                <MudListItem Text="@song.Name"/>
+                            }
+                        </MudList>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+
+
+@code {
+    private bool enabled = true;
+    private IEnumerable<(string Name, string Id)> PackList = new List<(string Name, string Id)>();
+    private IEnumerable<(string Name, string Id)> FilteredPackList = new List<(string Name, string Id)>();
+
+
+
+    private ZenSource.PackDetails SelectedPack;
+
+    private string searchTextValue;
+
+    string SearchTextValue
+    {
+        get => searchTextValue;
+        set
+        {
+            searchTextValue = value;
+            SearchTextChanged();
+        }
+    }
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        PackList = await ZenSource.ListPacks();
+        FilteredPackList = PackList;
+    }
+
+    
+    async  Task DownloadPack()
+    {
+        await ZenSource.DownloadPack(SelectedPack);
+    }
+
+    private void SearchTextChanged()
+    {
+        if (string.IsNullOrEmpty(SearchTextValue))
+        {
+            FilteredPackList = PackList;
+        }
+        else
+        {
+            FilteredPackList = PackList.Where(x => x.Name.Contains(SearchTextValue));
+        }
+    }
+
+}

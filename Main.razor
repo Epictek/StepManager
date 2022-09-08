@@ -4,8 +4,15 @@
 @using System.Net.Http
 @using AngleSharp.Dom
 @using Microsoft.AspNetCore.Components
+@using Microsoft.Extensions.Logging
+@using Microsoft.Extensions.Logging.Abstractions
+@using System.Collections.Concurrent
+@using System.Diagnostics
+@using Microsoft.JSInterop
+@using StepmaniaUtils
+@inject ILogger<Main> Logger
 @inject ISnackbar Snackbar
-
+@inject IJSRuntime JSRuntime
 
 <MudThemeProvider IsDarkMode="true" />
 <MudDialogProvider/>
@@ -75,10 +82,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        var cid = 34;
-
-
-        var config = Configuration.Default.WithDefaultLoader();
+    var config = Configuration.Default.WithDefaultLoader();
         context = BrowsingContext.New(config);
 
         var catListUrl = "https://zenius-i-vanisher.com/v5.2/simfiles.php?category=simfiles";
@@ -87,6 +91,7 @@
         CatList = document.QuerySelectorAll("option").Where(x => x.GetAttribute("value") != "0");
         FilteredCatList = CatList;
     }
+
 
     string CreatePackDir(string packTitle)
     {
