@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
-using StepManager.Data;
 using MudBlazor.Services;
 using StepManager.DownloadSources;
 using StepManager.Services;
@@ -12,12 +11,12 @@ builder.Services.AddHttpClient();
 
 builder.Services.AddRazorPages();
 builder.Services.AddServerSideBlazor();
-builder.Services.AddSingleton<WeatherForecastService>();
 builder.Services.AddMudServices();
 builder.Services.AddSingleton<SettingsService>();
 
 builder.Services.AddSingleton<SongManager>();
 builder.Services.AddSingleton<ZenSource>();
+builder.Services.AddSingleton<SMOSource>();
 
 var app = builder.Build();
 

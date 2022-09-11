@@ -56,10 +56,6 @@
                 <GroupHeaderTemplate>
                     <MudTh Class="mud-table-cell-custom-group" colspan="5">
                         @{
-                            if ((string)context.Key == "Songs")
-                            {
-
-                            }
                             var banner = GetPackImage((string)context.Key);
                             if (banner != null)
                             {
@@ -71,8 +67,7 @@
                 </GroupHeaderTemplate>
                 <RowTemplate>
                     <MudTd DataLabel="Banner">
-                        @context.BannerPath
-                        @* <MudImage Height="40" Src="@(Base64Image(Path.Combine(context.Directory, context.BannerPath)))"/> *@
+                        <MudImage Height="40" Src="@(Base64Image(Path.Combine(context.Directory, context.BannerPath)))"/>
                     </MudTd>
                     <MudTd DataLabel="Artist">@context.Artist</MudTd>
                     <MudTd DataLabel="Title">@context.SongTitle</MudTd>
@@ -101,15 +96,17 @@
 
     string _currentFile;
 
-    string Base64Image(string imageFilepath)
+    string Base64Image(string path)
     {
-        return "data:image/png;base64," + Convert.ToBase64String(File.ReadAllBytes(imageFilepath));
-        
+        if (!File.Exists(path)) return "";
+        return "data:image/png;base64," + Convert.ToBase64String(File.ReadAllBytes(path));
     }
-    
-    string Base64Audio(string imageFilepath)
+
+    string Base64Audio(string path)
     {
-        return "data:audio/ogg;base64," + Convert.ToBase64String(File.ReadAllBytes(imageFilepath));
+        if (!File.Exists(path)) return "";
+
+        return "data:audio/ogg;base64," + Convert.ToBase64String(File.ReadAllBytes(path));
     }
 
     string GetPackDir(string pack)

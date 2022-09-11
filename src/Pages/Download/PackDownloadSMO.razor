@@ -1,12 +1,12 @@
-﻿@page "/download/packs"
+﻿@page "/download/packs-smo"
 
 @using Microsoft.AspNetCore.Components
 @using Microsoft.Extensions.Logging
 @using StepManager.DownloadSources
-@inject ILogger<PackDownload> Logger
+@inject ILogger<PackDownloadSMO> Logger
 @inject ISnackbar Snackbar
 @inject HttpClient Client
-@inject ZenSource ZenSource
+@inject SMOSource SMOSource
 <MudThemeProvider IsDarkMode="true" />
 <MudDialogProvider/>
 <MudSnackbarProvider/>
@@ -18,7 +18,7 @@
                     <MudList Class="overflow-scroll" Style="height: 900px; width:100%;" Clickable="true">
                         @foreach (var pack in FilteredPackList)
                         {
-                            <MudListItem OnClick="async () => SelectedPack = await ZenSource.GetPackDetails(pack.Id)" Text="@pack.Name"/>
+                            <MudListItem OnClick="async () => SelectedPack = await SMOSource.GetPackDetails(pack.Id)" Text="@pack.Name"/>
                         }
                     </MudList>
                 </MudPaper>
@@ -33,7 +33,7 @@
                         <MudList Clickable="true">
                             @foreach (var song in SelectedPack.Songs)
                             {
-                                <MudListItem Text="@song.Name"/>
+                                <MudListItem Text="@song.Title"/>
                             }
                         </MudList>
                     </MudPaper>
@@ -49,7 +49,7 @@
 
 
 
-    private ZenSource.PackDetails SelectedPack;
+    private PackDetails SelectedPack;
 
     private string searchTextValue;
 
@@ -66,14 +66,14 @@
 
     protected override async Task OnInitializedAsync()
     {
-        PackList = await ZenSource.ListPacks();
+        PackList = await SMOSource.ListPacks();
         FilteredPackList = PackList;
     }
 
     
     async  Task DownloadPack()
     {
-        await ZenSource.DownloadPack(SelectedPack);
+        await SMOSource.DownloadPack(SelectedPack);
     }
 
     private void SearchTextChanged()
@@ -84,7 +84,7 @@
         }
         else
         {
-            FilteredPackList = PackList.Where(x => x.Name.Contains(SearchTextValue));
+            FilteredPackList = PackList.Where(x => x.Name.ToLower().Contains(SearchTextValue.ToLower()));
         }
     }
 

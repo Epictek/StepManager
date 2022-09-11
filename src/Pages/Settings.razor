@@ -6,7 +6,7 @@
 <MudTextField @bind-Value="GamePath" Label="Game Path" Variant="Variant.Outlined"></MudTextField>
 
 
-<MudButton OnClick="() => SettingsService.Save()">
+<MudButton StartIcon="@Icons.Material.Filled.Save" Variant="Variant.Filled" Color="Color.Primary" OnClick="() => SettingsService.Save()">
 Save
 </MudButton>
 

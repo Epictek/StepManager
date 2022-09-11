@@ -1,34 +1,35 @@
-﻿using System.IO.Compression;
-using AngleSharp;
+﻿using AngleSharp;
 using StepManager.Services;
 
 namespace StepManager.DownloadSources;
 
-public class ZenSource
+public class SMOSource
 {
     private readonly SongManager SongManager;
     private readonly HttpClient HttpClient;
     private readonly IBrowsingContext context;
+    private readonly SettingsService SettingsService;
 
-    public ZenSource(SongManager songManager, HttpClient httpClient)
+    public SMOSource(SongManager songManager, HttpClient httpClient, SettingsService settingsService)
     {
         SongManager = songManager;
         HttpClient = httpClient;
+        SettingsService = settingsService;
         var config = Configuration.Default.WithDefaultLoader();
         context = BrowsingContext.New(config);
 
     }
 
 
-
+    
     public async Task<IEnumerable<(string Name, string Id)>> ListPacks()
     {
 
-        var catListUrl = "https://zenius-i-vanisher.com/v5.2/simfiles.php?category=simfiles";
+        var catListUrl = "https://search.stepmaniaonline.net/packs/_";
 
         var document = await context.OpenAsync(catListUrl);
-        return document.QuerySelectorAll("option").Where(x => x.GetAttribute("value") != "0")
-            .Select(x => (Name: x.TextContent, Id: x.GetAttribute("value")!));
+        return document.QuerySelectorAll("tbody tr")
+            .Select(x => (Name: x.FirstElementChild.FirstElementChild.TextContent, Id: x.FirstElementChild.FirstElementChild.GetAttribute("href").Split('/').Last()));
 
     }
 
@@ -79,26 +80,25 @@ public class ZenSource
 
     public async Task<PackDetails> GetPackDetails(string id)
     {
-        var url = $"https://zenius-i-vanisher.com/v5.2/viewsimfilecategory.php?categoryid={id}";
+        var url = $"https://search.stepmaniaonline.net/pack/id/{id}";
 
         var document = await context.OpenAsync(url);
 
-        var titleSelector = "html body div.fixwidth div.headertop h1";
-        var title = document.QuerySelector(titleSelector).TextContent;
+        var titleSelector = "html body div.row div.col-lg-8.col-lg-offset-2 form div.input-group input#search.form-control";
+        var title = document.QuerySelector(titleSelector).GetAttribute("value");
 
-        var simTdSelector = "html body div.fixwidth div.content table tbody tr td strong a";
+        var simTdSelector = "html body div.container table.table tbody tr";
 
-        var SongList = document.QuerySelectorAll(simTdSelector)
-            .Where(x => x.GetAttribute("href").StartsWith("viewsimfile.php")).
-            Select(x => new SongDetails(){
-                Id = x.GetAttribute("href").Split('=')[1], 
-                Title = x.GetAttribute("title"),
-                SubTitle = x.TextContent, 
-                Credit = "",
-                Banner = "",
-                LastUpdate = DateTime.MinValue}
-            );
-
+        var SongList = document.QuerySelectorAll(simTdSelector).Select(x =>
+            new SongDetails(
+                title: x.Children[0].TextContent,
+                artist: x.Children[1].TextContent,
+                subTitle: x.Children[2].TextContent,
+                credit: x.Children[3].TextContent,
+                banner: x.Children[4].TextContent,
+                lastUpdate: DateTime.Parse(x.Children[5].TextContent)
+            )
+        );
         var imgUrl = document.QuerySelector("html body div.fixwidth div.content p.centre img")?.GetAttribute("src");
         imgUrl = imgUrl?.Replace("..", "https://zenius-i-vanisher.com/");
 
@@ -110,29 +110,21 @@ public class ZenSource
     public async Task DownloadPack(PackDetails pack)
     {
         // Snackbar.Add($"Downloading pack {Title}", Severity.Info);
-        var songPath = SongManager.CreatePackDir(pack.Name);
+        
+        var url = $"https://search.stepmaniaonline.net/pack/id/{pack.id}";
+        var document = await context.OpenAsync(url);
 
-        if (!string.IsNullOrEmpty(pack.BannerUrl))
-        {
-            _ = DownloadBanner(pack.BannerUrl, songPath);
-        }
+        var downloadUrl = $"https://search.stepmaniaonline.net{document.QuerySelector("html body div.container h4 a")?.GetAttribute("href")}";
 
-        foreach (var song in pack.Songs)
-        {
-            // Snackbar.Add($"Downloading {sname}", Severity.Info);
+        var response = await HttpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, downloadUrl)
+            { Headers = { Referrer = new Uri(downloadUrl) } });
 
-            var downloadUrl = $"https://zenius-i-vanisher.com/v5.2/download.php?type=ddrsimfile&simfileid={song.Id}";
-            
-            await using var s = await HttpClient.GetStreamAsync(downloadUrl);
 
-            var zip = Path.Join(songPath, $"{song.Id}.zip");
-            await using var fs = new FileStream(zip, FileMode.CreateNew);
-            await s.CopyToAsync(fs);
-            // Snackbar.Add($"Finished downloading {sname}", Severity.Success);
-            ZipFile.ExtractToDirectory(zip, songPath);
-        }
+        await using var s = await response.Content.ReadAsStreamAsync();
+
+        var zip = Path.Join(SettingsService.Settings.StepManiaSongPath, $"{pack.Id}.zip");
+        await using var fs = new FileStream(zip, FileMode.CreateNew);
+        await s.CopyToAsync(fs);
+        // File.Delete(zip);
     }
-    
-    
-    
 }
