@@ -73,7 +73,10 @@
     
     async  Task DownloadPack()
     {
-        await SMOSource.DownloadPack(SelectedPack);
+        var progress = new Progress<float> ();
+        progress.ProgressChanged += (x, f) => Console.WriteLine(f);
+        
+        await SMOSource.DownloadPack(SelectedPack, progress);
     }
 
     private void SearchTextChanged()
